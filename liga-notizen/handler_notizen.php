@@ -2,7 +2,7 @@
 /**
  * Project: LMOnext
  * Filename: addon/liga-notizen/handler_notizen.php
- * Fileversion: 1.0.0
+ * Fileversion: 1.2.0
  *
  * PHP version 8.2
  *
@@ -41,7 +41,12 @@ function ensureNotizenTable(): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         $done = true;
     } catch (Throwable $e) {
-        // Fehler stillschweigend ignorieren — die View zeigt dann "keine Notizen"
+        // Verbesserung im Rahmen der Integrationsprüfung: Fehler wird jetzt
+        // geloggt statt komplett stillschweigend verschluckt zu werden -
+        // schlägt die Tabellenerstellung fehl (z.B. fehlende DB-Rechte),
+        // sah der Nutzer bisher nur "keine Notizen" ohne jeden Hinweis auf
+        // die eigentliche Ursache.
+        error_log('[liga-notizen] ensureNotizenTable() fehlgeschlagen: ' . $e->getMessage());
     }
 }
 
@@ -62,6 +67,15 @@ function notizenOnLigaDeleted(array $data): array
 
 // Notiz speichern (neu oder bearbeiten)
 if ($action === 'notiz_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    // SICHERHEITSFIX (Beitrag: Integrationsprüfung des Addons vor
+    // Übernahme): requireLogin() fehlte hier - anders als requireCsrf()
+    // (das zentral in admin.php für JEDEN POST-Request geprüft wird) gibt
+    // es KEINE zentrale, unbedingte Login-Prüfung im Core - jeder Admin-
+    // Handler MUSS sie selbst als erste Zeile aufrufen (siehe admin/
+    // handler_liga.php als durchgängiges Vorbild). Ohne diese Zeile hätte
+    // jeder, auch ohne Login, mit einem gültigen (login-unabhängig
+    // erzeugbaren) CSRF-Token Liga-Notizen anlegen/ändern können.
+    requireLogin();
     $id      = (int)($_POST['id'] ?? 0);
     $ligaId  = (int)($_POST['liga_id'] ?? 0);
     $titel   = trim($_POST['titel'] ?? '');
@@ -71,11 +85,11 @@ if ($action === 'notiz_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!in_array($farbe, $farben, true)) $farbe = 'gelb';
 
     if ($ligaId <= 0) {
-        flash('Liga-ID fehlt.', 'error');
+        flash(t('notizen_err_liga'), 'error');
         redirect('?action=notizen');
     }
     if ($titel === '') {
-        flash('Titel darf nicht leer sein.', 'error');
+        flash(t('notizen_err_title'), 'error');
         redirect('?action=notizen&liga_id=' . $ligaId);
     }
 
@@ -89,28 +103,30 @@ if ($action === 'notiz_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                   WHERE id = ?'
             );
             $stmt->execute([$ligaId, $titel, $inhalt, $farbe, $id]);
-            flash('Notiz aktualisiert.', 'success');
+            flash(t('notizen_updated'), 'success');
         } else {
             $stmt = $db->prepare(
                 'INSERT INTO ' . tbl('liga_notizen') . ' (liga_id, titel, inhalt, farbe, erstellt_von)
                  VALUES (?, ?, ?, ?, ?)'
             );
             $stmt->execute([$ligaId, $titel, $inhalt, $farbe, $_SESSION['admin_user'] ?? '']);
-            flash('Notiz angelegt.', 'success');
+            flash(t('notizen_created'), 'success');
         }
     } catch (Throwable $e) {
-        flash('Datenbankfehler: ' . $e->getMessage(), 'error');
+        flash(t('notizen_err_db', ['msg' => $e->getMessage()]), 'error');
     }
     redirect('?action=notizen&liga_id=' . $ligaId);
 }
 
 // Notiz löschen
 if ($action === 'notiz_delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    // SICHERHEITSFIX: siehe ausführlicher Kommentar bei notiz_save oben.
+    requireLogin();
     $id     = (int)($_POST['id'] ?? 0);
     $ligaId = (int)($_POST['liga_id'] ?? 0);
 
     if ($id <= 0) {
-        flash('Ungültige Notiz-ID.', 'error');
+        flash(t('notizen_err_invalid_id'), 'error');
         redirect('?action=notizen');
     }
 
@@ -119,9 +135,9 @@ if ($action === 'notiz_delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $db = getDB();
         $stmt = $db->prepare('DELETE FROM ' . tbl('liga_notizen') . ' WHERE id = ?');
         $stmt->execute([$id]);
-        flash('Notiz gelöscht.', 'success');
+        flash(t('notizen_deleted'), 'success');
     } catch (Throwable $e) {
-        flash('Fehler beim Löschen: ' . $e->getMessage(), 'error');
+        flash(t('notizen_err_delete', ['msg' => $e->getMessage()]), 'error');
     }
     redirect('?action=notizen&liga_id=' . $ligaId);
 }
