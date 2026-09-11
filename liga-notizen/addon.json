@@ -1,6 +1,6 @@
 {
     "name": "liga-notizen",
-    "version": "1.0.3",
+    "version": "1.2.0",
     "type": "admin",
     "description": {
         "de": "Beispiel-Addon: Notizen pro Liga anlegen, bearbeiten und löschen. Zeigt das Addon-System in Aktion.",
@@ -10,7 +10,7 @@
     "license": "GPL-3.0-only",
     "homepage": "https://github.com/webfalter/liga-notizen/tree/main/liga-notizen",
     "icon": "📝",
-    "min_core_version": "1.4.0",
+    "min_core_version": "1.9.2",
     "dependencies": [],
     "admin_handlers": ["handler_notizen.php"],
     "admin_views": {
@@ -23,7 +23,7 @@
     "frontend_views": {},
     "templates_dir": "",
     "lang_dir": "lang/",
-    "db_tables": ["lmo_liga_notizen"],
+    "db_tables": ["liga_notizen"],
     "hooks": [
         { "event": "liga.deleted", "handler": "notizenOnLigaDeleted", "priority": 10 }
     ]
